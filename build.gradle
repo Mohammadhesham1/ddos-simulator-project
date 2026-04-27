@@ -10,9 +10,4 @@ buildscript {
     }
 }
 
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
+// تم إزالة بلوك allprojects { repositories { ... } } لأنه يتعارض مع إعدادات settings.gradle الحديثة
