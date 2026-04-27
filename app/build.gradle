@@ -32,16 +32,6 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    // إصلاح مشاكل المهام المتعارضة مثل checkDebugAarMetadata و mapDebugSourceSetPaths
-    tasks.whenTaskAdded { task ->
-        if (task.name.contains("check") && task.name.contains("AarMetadata")) {
-            task.enabled = false
-        }
-        if (task.name.contains("map") && task.name.contains("SourceSetPaths")) {
-            task.enabled = false
-        }
-    }
 }
 
 dependencies {
