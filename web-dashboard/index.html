@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DDoS Simulator Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .attacking { animation: pulse 1s infinite; color: #ef4444; }
+    </style>
+</head>
+<body class="bg-slate-900 text-white font-sans">
+    <div class="container mx-auto px-4 py-10 max-w-4xl">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold mb-2 text-red-500">DDoS Simulator Dashboard</h1>
+            <p class="text-slate-400">مشروع تخرج - محاكاة هجمات DDoS لاختبار الثبات</p>
+        </header>
+
+        <div class="bg-slate-800 p-6 rounded-xl shadow-2xl border border-slate-700 mb-8">
+            <div class="flex flex-col md:flex-row gap-4">
+                <input type="text" id="targetUrl" placeholder="أدخل رابط الموقع (مثال: https://example.com)" 
+                    class="flex-1 bg-slate-900 border border-slate-600 p-3 rounded-lg focus:outline-none focus:border-red-500 text-left" dir="ltr">
+                <button id="actionBtn" onclick="toggleAttack()" 
+                    class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg transition-all">
+                    بدء الهجوم
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center">
+                <p class="text-slate-400 text-sm mb-1">إجمالي الطلبات</p>
+                <p id="totalRequests" class="text-3xl font-mono font-bold">0</p>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center">
+                <p class="text-slate-400 text-sm mb-1">الطلبات الناجحة</p>
+                <p id="successRequests" class="text-3xl font-mono font-bold text-green-500">0</p>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center">
+                <p class="text-slate-400 text-sm mb-1">الطلبات الفاشلة</p>
+                <p id="failRequests" class="text-3xl font-mono font-bold text-red-500">0</p>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                <span id="statusDot" class="w-3 h-3 bg-slate-500 rounded-full ml-2"></span>
+                الحالة: <span id="statusText" class="mr-2">خامل</span>
+            </h2>
+            <div class="w-full bg-slate-900 rounded-full h-4 mb-4 overflow-hidden">
+                <div id="progressBar" class="bg-red-600 h-full w-0 transition-all duration-500"></div>
+            </div>
+            <p class="text-sm text-slate-400 text-center">السرعة الحالية: <span id="speedText" class="font-mono">0</span> طلب/ثانية</p>
+        </div>
+
+        <footer class="mt-12 text-center text-slate-500 text-sm">
+            <p>هذا المشروع للأغراض التعليمية فقط ضمن المبادرة الحكومية.</p>
+        </footer>
+    </div>
+
+    <script>
+        let isAttacking = false;
+        let total = 0;
+        let success = 0;
+        let fail = 0;
+        let interval;
+        let startTime;
+
+        function toggleAttack() {
+            const url = document.getElementById('targetUrl').value;
+            const btn = document.getElementById('actionBtn');
+            
+            if (!isAttacking) {
+                if (!url || !url.startsWith('http')) {
+                    alert('يرجى إدخال رابط صحيح يبدأ بـ http أو https');
+                    return;
+                }
+                
+                isAttacking = true;
+                btn.innerText = 'إيقاف الهجوم';
+                btn.classList.replace('bg-red-600', 'bg-slate-600');
+                document.getElementById('statusText').innerText = 'جاري الهجوم...';
+                document.getElementById('statusDot').classList.replace('bg-slate-500', 'bg-red-500');
+                document.getElementById('statusDot').classList.add('attacking');
+                
+                startTime = Date.now();
+                startSimulation(url);
+            } else {
+                stopAttack();
+            }
+        }
+
+        function startSimulation(url) {
+            // محاكاة الهجوم من المتصفح (بسبب قيود CORS، الهجوم الفعلي يكون من الـ APK)
+            // هنا نقوم بمحاكاة الإحصائيات للعرض على نيتلفاي
+            interval = setInterval(() => {
+                const batch = Math.floor(Math.random() * 50) + 10;
+                total += batch;
+                const s = Math.floor(batch * 0.8);
+                success += s;
+                fail += (batch - s);
+                
+                document.getElementById('totalRequests').innerText = total.toLocaleString();
+                document.getElementById('successRequests').innerText = success.toLocaleString();
+                document.getElementById('failRequests').innerText = fail.toLocaleString();
+                
+                const elapsed = (Date.now() - startTime) / 1000;
+                const rps = Math.floor(total / elapsed);
+                document.getElementById('speedText').innerText = rps.toLocaleString();
+                
+                document.getElementById('progressBar').style.width = (Math.min(100, (total / 10000) * 100)) + '%';
+            }, 200);
+        }
+
+        function stopAttack() {
+            isAttacking = false;
+            clearInterval(interval);
+            const btn = document.getElementById('actionBtn');
+            btn.innerText = 'بدء الهجوم';
+            btn.classList.replace('bg-slate-600', 'bg-red-600');
+            document.getElementById('statusText').innerText = 'تم الإيقاف';
+            document.getElementById('statusDot').classList.replace('bg-red-500', 'bg-slate-500');
+            document.getElementById('statusDot').classList.remove('attacking');
+        }
+    </script>
+</body>
+</html>
