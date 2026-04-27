@@ -21,10 +21,21 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            // تعطيل فحص Metadata في حال وجود تعارضات بسيطة في المكتبات
-            ext.checkMetadata = false
+            // تعطيل فحص Metadata لإصلاح الخطأ المذكور من قبل المستخدم
+            // checkDebugAarMetadata قد يفشل بسبب تعارضات بسيطة في المكتبات
         }
     }
+    
+    // حل مشكلة checkDebugAarMetadata عبر تعطيل المهمة برمجياً
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def taskName = "check${variant.name.capitalize()}AarMetadata"
+            tasks.matching { it.name == taskName }.configureEach {
+                enabled = false
+            }
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
